@@ -1,0 +1,893 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Retro RPG Game</title>
+        <style>
+            body {
+                background-color: #000;
+                color: #f5deb3;
+                font-family: monospace;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+            #game-container {
+                width: 90%;
+                max-width: 320px;
+                height: 240px;
+                border: 2px solid #f5deb3;
+                padding: 10px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                overflow-y: auto;
+            }
+            #controls {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-top: 20px;
+            }
+            #controls button {
+                width: 40px;
+                height: 40px;
+                margin: 5px;
+                background-color: #f5deb3;
+                color: #000;
+                border: none;
+                font-size: 18px;
+                cursor: pointer;
+                border-radius: 5px;
+            }
+        </style>
+    </head>
+    <body>
+
+    <div id="game-container">
+        <div id="output"></div>
+    </div>
+
+    <div id="controls">
+        <button onclick="handleButtonInput('1')">1</button>
+        <button onclick="handleButtonInput('2')">2</button>
+        <button onclick="handleButtonInput('3')">3</button>
+        <button onclick="handleButtonInput('4')">4</button>
+        <button onclick="handleButtonInput('5')">5</button>
+        <button onclick="handleButtonInput('6')">6</button>
+        <button onclick="handleButtonInput('7')">7</button>
+        <button onclick="handleButtonInput('0')">0</button>
+    </div>
+
+    <script>
+        function handleButtonInput(key) {
+            handleInput({ key: key });
+        }
+
+        let currentStep = 0;
+        let player = {
+            name: "",
+            race: "",
+            class: "",
+            hp: 100,
+            maxHp: 100,
+            atk: 10,
+            def: 0,
+            gold: 0,
+            inventory: [],
+            battleGears: [],
+            canTransform: false,
+            isTransformed: false,
+            level: 1,
+            currentPvPEnemy: null
+        };
+
+    function saveGame(slot) {
+        const playerData = {
+            name: player.name,
+            race: player.race,
+            class: player.class,
+            hp: player.hp,
+            maxHp: player.maxHp,
+            atk: player.atk,
+            def: player.def,
+            gold: player.gold,
+            inventory: player.inventory,
+            battleGears: player.battleGears,
+            canTransform: player.canTransform,
+            isTransformed: player.isTransformed,
+            level: player.level
+        };
+        localStorage.setItem(`retroRPGsave_${slot}`, JSON.stringify(playerData));
+        updateOutput(`Game saved successfully in slot ${slot}!`);
+    }
+
+    function promptSaveSlot() {
+        updateOutput("Choose a save slot:\n(1) Slot 1\n(2) Slot 2\n(3) Slot 3\n(0) Cancel");
+        currentStep = 100; // Step untuk memilih slot save
+    }
+
+    function handleSaveSlotSelection(event) {
+        if (event.key === "1" || event.key === "2" || event.key === "3") {
+            saveGame(event.key);
+            updateOutput("Save successful. (D)one or (C)ancel?");
+            currentStep = 102; // Step untuk memilih Done atau Cancel
+        } else if (event.key === "0") {
+            updateOutput("Save cancelled.");
+            setTimeout(showMainMenu, 2000);
+        } else {
+            updateOutput("Invalid slot. Please choose a valid slot.");
+            setTimeout(promptSaveSlot, 2000);
+        }
+    }
+
+    function handleDoneOrCancel(event) {
+        if (event.key.toLowerCase() === "d") {
+            updateOutput("Game saved successfully. Returning to lobby...");
+            setTimeout(showMainMenu, 2000);
+        } else if (event.key.toLowerCase() === "c") {
+            updateOutput("Save cancelled. Returning to lobby...");
+            setTimeout(showMainMenu, 2000);
+        } else {
+            updateOutput("Invalid choice. Press (D)one or (C)ancel.");
+        }
+    }
+
+
+
+    function loadGame(slot) {
+        const savedData = localStorage.getItem(`retroRPGsave_${slot}`);
+        if (savedData) {
+            const playerData = JSON.parse(savedData);
+            player.name = playerData.name;
+            player.race = playerData.race;
+            player.class = playerData.class;
+            player.hp = playerData.hp;
+            player.maxHp = playerData.maxHp;
+            player.atk = playerData.atk;
+            player.def = playerData.def;
+            player.gold = playerData.gold;
+            player.inventory = playerData.inventory;
+            player.battleGears = playerData.battleGears;
+            player.canTransform = playerData.canTransform;
+            player.isTransformed = playerData.isTransformed;
+            player.level = playerData.level;
+            updateOutput(`Game loaded successfully from slot ${slot}. Welcome back, ${player.name}!`);
+            setTimeout(showMainMenu, 2000);
+        } else {
+            updateOutput(`No saved game found in slot ${slot}.`);
+            setTimeout(showMainMenu, 2000);
+        }
+    }
+
+    function promptLoadSlot() {
+        updateOutput("Choose a load slot:\n(1) Slot 1\n(2) Slot 2\n(3) Slot 3\n(0) Cancel");
+        currentStep = 101; // Step untuk memilih slot load
+    }
+
+    function handleLoadSlotSelection(event) {
+        if (event.key === "1" || event.key === "2" || event.key === "3") {
+            loadGame(event.key);
+        } else if (event.key === "0") {
+            updateOutput("Load cancelled.");
+            setTimeout(showMainMenu, 2000);
+        } else {
+            updateOutput("Invalid slot. Please choose a valid slot.");
+            setTimeout(promptLoadSlot, 2000);
+        }
+    }
+
+
+    let currentEnemy = null;
+    let bidAmount = 0;
+
+    function updateOutput(text) {
+        document.getElementById("output").innerText = text;
+    }
+
+    function startGame() {
+        updateOutput("Welcome to the Retro RPG!\n\nEnter your name:");
+        currentStep = 1;
+    }
+
+    function handleInput(event) {
+        if (currentStep === 0) startGame();
+        else if (currentStep === 1) handleNameInput(event);
+        else if (currentStep === 2) handleRaceSelection(event);
+        else if (currentStep === 3) handleClassSelection(event);
+        else if (currentStep === 5) handleMainMenuSelection(event);
+        else if (currentStep === 6) handleHuntChoice(event);
+        else if (currentStep === 7) handleShopSelection(event);
+        else if (currentStep === 8) handleInventorySelection(event);
+        else if (currentStep === 9) handleHuntCombatChoice(event);
+        else if (currentStep === 10) handleUpgradeSelection(event);
+        else if (currentStep === 20) handlePvPSelection(event);
+        else if (currentStep === 21) handleBidSelection(event);
+        else if (currentStep === 29) handlePvPCombatChoice(event);
+        else if (currentStep === 15) handleLobbyReturn(event);
+        else if (currentStep === 100) handleSaveSlotSelection(event);
+        else if (currentStep === 101) handleLoadSlotSelection(event);
+        else if (currentStep === 102) handleDoneOrCancel(event);
+    }
+
+
+    function handleNameInput(event) {
+        const inputChar = event.key;
+
+        // Cek jika input adalah alfabet (a-z, A-Z) dan panjang nama tidak lebih dari 5 karakter
+        if (/^[a-zA-Z]$/.test(inputChar) && player.name.length < 5) {
+            player.name += inputChar;
+            updateOutput(document.getElementById("output").innerText + inputChar);
+        } else if (event.key === "Backspace" && player.name.length > 0) {
+            player.name = player.name.slice(0, -1);
+            const currentText = document.getElementById("output").innerText;
+            updateOutput(currentText.slice(0, -1)); // Hapus karakter terakhir dari output
+        } else if (event.key === "Enter") {
+            if (player.name.length > 0) {
+                updateOutput(`Welcome, ${player.name}!\nChoose your race:\n(1) Human\n(2) Draco`);
+                currentStep = 2;
+            } else {
+                updateOutput("Please enter a valid name:");
+            }
+        } else if (event.key.length === 1) {
+            // Jika input tidak valid, tampilkan pesan kesalahan (opsional)
+            updateOutput("Invalid input. Only alphabets are allowed and max 5 characters.");
+            setTimeout(() => updateOutput("Enter your name: " + player.name), 1000);
+        }
+    }
+
+
+    function handleRaceSelection(event) {
+        if (event.key === "1" || event.key === "2") {
+            player.race = event.key === "1" ? "Human" : "Draco";
+            chooseClass();
+        }
+    }
+
+    function chooseClass() {
+        updateOutput(`Race: ${player.race}\nChoose your class:\n(1) Warrior\n(2) Ranger\n(3) Defender\n(4) Wizard`);
+        currentStep = 3;
+    }
+
+    function handleClassSelection(event) {
+        if (["1", "2", "3", "4"].includes(event.key)) {
+            player.class = ["Warrior", "Ranger", "Defender", "Wizard"][parseInt(event.key) - 1];
+            startAdventure();
+        }
+    }
+
+    function startAdventure() {
+        updateOutput(`You are a ${player.race} ${player.class}.\n\nYour adventure begins now...`);
+        currentStep = 4;
+        setTimeout(showMainMenu, 2000);
+    }
+
+    function showMainMenu() {
+        updateOutput("Main Menu:\n(1) Hunt\n(2) View Stats\n(3) Shop\n(4) Inventory\n(5) PvP\n\n\n\n\n(6) Save Game\n(7) Load Game");
+        currentStep = 5;
+    }
+
+
+    function handleMainMenuSelection(event) {
+        switch (event.key) {
+            case "1": encounterEnemy(); break;
+            case "2": showStats(); break;
+            case "3": showShop(); break;
+            case "4": showInventory(); break;
+            case "5": encounterPvP(); break;
+            case "6": promptSaveSlot(); break;
+            case "7": promptLoadSlot(); break;
+            default: updateOutput("Invalid choice."); setTimeout(showMainMenu, 2000);
+        }
+    }
+
+
+
+    function showStats() {
+        updateOutput(`Stats:\nHP: ${player.hp}/${player.maxHp}\nATK: ${player.atk}\nDEF: ${player.def}\nLEVEL: ${player.level}\nGold: ${player.gold}\n\n(0) Return to Lobby`);
+        currentStep = 15;
+    }
+
+    function showShop() {
+        updateOutput("Welcome to the Shop!\n(1) Potions\n(2) Armor\n(3) Weapons\n(4) Shields\n(5) BattleGear\n(6) Back to Main Menu");
+        currentStep = 7;
+    }
+
+    function handleShopSelection(event) {
+        const potionItems = [
+            { name: "SPotion", cost: 5, effect: () => player.hp = Math.min(player.hp + 30, player.maxHp) },
+            { name: "MPotion", cost: 10, effect: () => player.hp = Math.min(player.hp + 50, player.maxHp) },
+            { name: "LPotion", cost: 25, effect: () => player.hp = Math.min(player.hp + 100, player.maxHp) },
+            { name: "XLPotion", cost: 50, effect: () => player.hp = Math.min(player.hp + 200, player.maxHp) },
+            { name: "XXLPotion", cost: 100, effect: () => player.hp = Math.min(player.hp + 300, player.maxHp) }
+        ];
+
+        const armorItems = [
+            { name: "SilverArmor", cost: 50, effect: () => player.def += 25 },
+            { name: "ArbatosArmor", cost: 500, effect: () => player.def += 100 },
+            { name: "DragonSkinArmor", cost: 1000, effect: () => player.def += 200 }
+        ];
+
+        const oneHandWeapons = [
+            { name: "SilverSword", cost: 50, effect: () => player.atk += 25 },
+            { name: "SilverKatana", cost: 70, effect: () => player.atk += 30 },
+            { name: "Siber", cost: 150, effect: () => player.atk += 55 },
+            { name: "DragonKatana", cost: 170, effect: () => player.atk += 60 }
+        ];
+
+        const twoHandWeapons = [
+            { name: "RedAxe", cost: 70, effect: () => player.atk += 50 },
+            { name: "WoodBow", cost: 70, effect: () => player.atk += 50 },
+            { name: "OdinSpare", cost: 200, effect: () => player.atk += 250 },
+            { name: "SilverBow", cost: 150, effect: () => player.atk += 120 },
+            { name: "HadesianBow", cost: 170, effect: () => player.atk += 135 },
+            { name: "GoldenArjuna", cost: 300, effect: () => player.atk += 300 }
+        ];
+
+        const shieldItems = [
+            { name: "BrownShield", cost: 30, effect: () => player.def += 15 },
+            { name: "SilverShield", cost: 75, effect: () => player.def += 50 },
+            { name: "HolyShield", cost: 125, effect: () => player.def += 150 }
+        ];
+
+        const battleGears = [
+            { name: "Dynamite", cost: 10, effect: () => currentEnemy.hp -= 25 },
+            { name: "BMCracker", cost: 100, effect: () => currentEnemy.hp -= 100 },
+            { name: "DonutTrapper", cost: 50, effect: () => { if (currentEnemy.isTransformed) currentEnemy.hp -= 150; }},
+            { name: "WebTrapper", cost: 20, effect: () => currentEnemy.atk *= 0.5 },
+            { name: "Smokebomb", cost: 15, effect: () => {
+                            updateOutput("You escaped the combat without penalty!");
+                            setTimeout(showMainMenu, 2000);
+                        }},
+                        { name: "SilverNail", cost: 30, effect: () => {
+                            currentEnemy.stunned = true;
+                            updateOutput("Enemy stunned for 1 turn!");
+                        }}
+                    ];
+
+                    if (event.key === "1") {
+                        displayShopItems(potionItems, "Potions");
+                    } else if (event.key === "2") {
+                        displayShopItems(armorItems, "Armor");
+                    } else if (event.key === "3") {
+                        displayShopItems(oneHandWeapons.concat(twoHandWeapons), "Weapons");
+                    } else if (event.key === "4") {
+                        displayShopItems(shieldItems, "Shields");
+                    } else if (event.key === "5") {
+                        displayShopItems(battleGears, "BattleGear");
+                    } else if (event.key === "6") {
+                        showMainMenu();
+                    }
+                }
+
+                function displayShopItems(items, category) {
+                    const itemOptions = items.map((item, index) => `(${index + 1}) ${item.name} - ${item.cost} Gold`).join("\n");
+                    updateOutput(`${category} Shop:\n${itemOptions}\n(0) Back to Shop Menu`);
+                    currentStep = 71;
+                    player.shopItems = items;
+                }
+
+                function handleShopItemSelection(event) {
+                    let index = parseInt(event.key) - 1;
+                    if (index >= 0 && index < player.shopItems.length) {
+                        let selectedItem = player.shopItems[index];
+                        if (player.gold >= selectedItem.cost) {
+                            player.gold -= selectedItem.cost;
+                            selectedItem.effect();
+                            updateOutput(`${selectedItem.name} purchased! Gold left: ${player.gold}`);
+                            player.inventory.push(selectedItem.name);
+                        } else {
+                            updateOutput("Not enough gold!");
+                        }
+                        setTimeout(showShop, 2000);
+                    } else if (event.key === "0") {
+                        showShop();
+                    }
+                }
+
+                function showInventory() {
+                    if (player.inventory.length === 0) {
+                        updateOutput("Your inventory is empty.\n\n(0) Return to Lobby");
+                    } else {
+                        let inventoryItems = player.inventory.map((item, index) => `(${index + 1}) ${item}`).join("\n");
+                        updateOutput(`Inventory:\n${inventoryItems}\n(Select an item to use or sell, or press '0' to return to menu)`);
+                    }
+                    currentStep = 8;
+                }
+
+                function handleInventorySelection(event) {
+                    let index = parseInt(event.key) - 1;
+                    if (index >= 0 && index < player.inventory.length) {
+                        let selectedItem = player.inventory[index];
+                        updateOutput(`You selected ${selectedItem}.\n(1) Use, (2) Sell for ${selectedItem.cost / 2} Gold\n(0) Return to Lobby`);
+                        currentStep = 81;
+                        player.selectedItem = selectedItem;
+                        player.selectedItemIndex = index;
+                    } else if (event.key === "0") {
+                        showMainMenu();
+                    }
+                }
+
+                function handleInventoryItemAction(event) {
+                    if (event.key === "1") {
+                        useSelectedItem();
+                    } else if (event.key === "2") {
+                        sellSelectedItem();
+                    } else if (event.key === "0") {
+                        showMainMenu();
+                    }
+                }
+
+                function useSelectedItem() {
+                    const selectedItem = player.shopItems.find(item => item.name === player.selectedItem);
+                    if (selectedItem) {
+                        selectedItem.effect();
+                        updateOutput(`${player.selectedItem} used!`);
+                        player.inventory.splice(player.selectedItemIndex, 1);
+                    }
+                    setTimeout(showInventory, 2000);
+                }
+
+                function sellSelectedItem() {
+                    const selectedItem = player.shopItems.find(item => item.name === player.selectedItem);
+                    if (selectedItem) {
+                        player.gold += selectedItem.cost / 2;
+                        updateOutput(`${player.selectedItem} sold! Gold: ${player.gold}`);
+                        player.inventory.splice(player.selectedItemIndex, 1);
+                    }
+                    setTimeout(showInventory, 2000);
+                }
+
+                function encounterEnemy() {
+                    let enemyType = "Monster";
+                    let goldReward = player.level * 10;
+                    const enemyStats = {
+                        hp: Math.floor(Math.random() * 50) + 50,
+                        atk: Math.floor(Math.random() * 10) + 10,
+                        def: Math.floor(Math.random() * 5) + 5
+                    };
+
+                    if (player.level <= 20) {
+                        if (Math.random() < 0.7) {
+                            enemyType = "Small Monster";
+                            goldReward = player.level * 5;
+                        } else {
+                            enemyType = "Monster";
+                            goldReward = player.level * 10;
+                        }
+                    } else if (player.level > 20 && player.level <= 30) {
+                        if (Math.random() < 0.5) {
+                            enemyType = "Monster";
+                            goldReward = player.level * 10;
+                        } else {
+                            enemyType = "Big Monster";
+                            goldReward = player.level * 20;
+                        }
+                    } else {
+                        if (Math.random() < 0.7) {
+                            enemyType = "Big Monster";
+                            goldReward = player.level * 20;
+                        } else {
+                            enemyType = "Monster";
+                            goldReward = player.level * 10;
+                        }
+                    }
+
+                    currentEnemy = {
+                        name: enemyType,
+                        hp: enemyStats.hp,
+                        atk: enemyStats.atk,
+                        def: enemyStats.def,
+                        goldReward: goldReward,
+                        class: enemyType,
+                        stunned: false,
+                        isTransformed: false
+                    };
+
+                    updateOutput(`You encountered a ${enemyType}!\n\nEnemy Class: ${currentEnemy.class}\nHP: ${currentEnemy.hp}\nATK: ${currentEnemy.atk}\nDEF: ${currentEnemy.def}\n\n(1) Battle\n(2) Abandon`);
+                    currentStep = 6;
+                }
+
+                function handleHuntChoice(event) {
+                    if (event.key === "1") startHuntCombat();
+                    else if (event.key === "2") {
+                        updateOutput("You abandoned the hunt and returned to the main menu.");
+                        setTimeout(showMainMenu, 2000);
+                    }
+                }
+
+                function startHuntCombat() {
+                    let combatText = `Combat Start!\n\nEnemy Stats:\nClass: ${currentEnemy.class}\nHP: ${currentEnemy.hp}\nATK: ${currentEnemy.atk}\nDEF: ${currentEnemy.def}\n\nYour Stats:\nHP: ${player.hp}\nATK: ${player.atk}\nDEF: ${player.def}\n\n(1) ✊ Rock\n(2) ✋ Paper\n(3) ✌️ Scissors\n(4) Potion\n(5) Use Skill`;
+                    if (player.race === "Human" && player.battleGears.length > 0) {
+                        combatText += `\n(6) Use BattleGear`;
+                    }
+                    if (player.canTransform && !player.isTransformed) {
+                        combatText += `\n(7) Transform`;
+                    }
+                    updateOutput(combatText);
+                    currentStep = 9; // Set specifically for Hunt combat
+                }
+
+                function handleHuntCombatChoice(event) {
+                    if (currentStep === 9) {
+                        let playerChoice, enemyChoice;
+                        let choices = ["Rock", "Paper", "Scissors"];
+                        let emoticonMap = {
+                            "Rock": "✊",
+                            "Paper": "✋",
+                            "Scissors": "✌️"
+                        };
+
+                        if (event.key >= "1" && event.key <= "3") {
+                            playerChoice = choices[parseInt(event.key) - 1];
+                            enemyChoice = choices[Math.floor(Math.random() * 3)];
+                            let playerEmoticon = emoticonMap[playerChoice];
+                            let enemyEmoticon = emoticonMap[enemyChoice];
+
+                            updateOutput(`Enemy ${enemyEmoticon} vs You ${playerEmoticon}`);
+
+                            setTimeout(() => {
+                                determineHuntCombatResult(playerChoice, enemyChoice);
+                            }, 2000);
+                        } else if (event.key === "4") {
+                            usePotion();
+                        } else if (event.key === "5") {
+                            useSkill();
+                        } else if (event.key === "6" && player.race === "Human") {
+                            useBattleGear();
+                        } else if (event.key === "7" && player.canTransform && !player.isTransformed) {
+                            transformToDragon();
+                        }
+                    }
+                }
+
+                function determineHuntCombatResult(playerChoice, enemyChoice) {
+                    let result;
+
+                    if (playerChoice === enemyChoice) {
+                        result = "tie";
+                    } else if (
+                        (playerChoice === "Rock" && enemyChoice === "Scissors") ||
+                        (playerChoice === "Paper" && enemyChoice === "Rock") ||
+                        (playerChoice === "Scissors" && enemyChoice === "Paper")
+                    ) {
+                        result = "win";
+                    } else {
+                        result = "lose";
+                    }
+
+                    if (result === "win") {
+                        let damage = Math.max(0, player.atk - currentEnemy.def);
+                        if (player.skillUsed) {
+                            switch (player.class) {
+                                case "Warrior":
+                                    damage += player.atk; // Slash
+                                    break;
+                                case "Ranger":
+                                    damage *= 2; // Double Attack
+                                    break;
+                                    case "Defender":
+                                    damage += player.def; // Magnum Breaker
+                                    break;
+                                    case "Wizard":
+                                    currentEnemy.def = 0; // Dark Spell
+                                    break;
+                                    }
+                                    player.skillUsed = false; // Reset skill usage after applying
+                                    }
+                                    currentEnemy.hp -= damage;
+                                    updateOutput(`You hit for ${damage} damage! Enemy HP: ${currentEnemy.hp}`);
+                                    } else if (result === "lose") {
+                                    let damage = Math.max(0, currentEnemy.atk - player.def);
+                                    player.hp -= damage;
+                                    updateOutput(`Enemy hits for ${damage} damage! Your HP: ${player.hp}`);
+                                    } else {
+                                    updateOutput("It's a tie! Try again.");
+                                    setTimeout(startHuntCombat, 2000);
+                                    }
+
+                                    checkHuntCombatEnd();
+                                    }
+
+                                    function usePotion() {
+                                    let potionIndex = player.inventory.findIndex(item => item.includes("Potion"));
+                                    if (potionIndex > -1) {
+                                    const potion = player.inventory[potionIndex];
+                                    let recoveryAmount = 0;
+
+                                    if (potion.includes("S")) recoveryAmount = 30;
+                                    if (potion.includes("M")) recoveryAmount = 50;
+                                    if (potion.includes("L")) recoveryAmount = 100;
+                                    if (potion.includes("XL")) recoveryAmount = 200;
+                                    if (potion.includes("XXL")) recoveryAmount = 300;
+
+                                    player.hp = Math.min(player.hp + recoveryAmount, player.maxHp);
+                                    updateOutput(`You used a ${potion}. HP: ${player.hp}/${player.maxHp}`);
+                                    player.inventory.splice(potionIndex, 1);
+                                    } else {
+                                    updateOutput("You have no potions left!");
+                                    }
+                                    setTimeout(startHuntCombat, 2000);
+                                    }
+
+                                    function useBattleGear() {
+                                    if (player.battleGears.length > 0) {
+                                    const gear = player.battleGears.pop(); // Use the last BattleGear
+                                    gear.effect();
+                                    updateOutput(`You used ${gear.name}!`);
+                                    } else {
+                                    updateOutput("No BattleGear available!");
+                                    }
+                                    setTimeout(startHuntCombat, 2000);
+                                    }
+                                    function useSkill() {
+                                        player.skillUsed = true; // Set skill usage flag
+                                        let skillName = "";
+                                        switch (player.class) {
+                                            case "Warrior":
+                                                skillName = "Slash";
+                                                break;
+                                            case "Ranger":
+                                                skillName = "Double Attack";
+                                                break;
+                                            case "Defender":
+                                                skillName = "Magnum Breaker";
+                                                break;
+                                            case "Wizard":
+                                                skillName = "Dark Spell";
+                                                break;
+                                        }
+                                        function transformEnemyToDragonPvP() {
+                                            if (player.currentPvPEnemy.race === "Draco" && !player.currentPvPEnemy.isTransformed) {
+                                                player.currentPvPEnemy.isTransformed = true;
+                                                player.currentPvPEnemy.atk += 50; // Example increase in ATK for the enemy
+                                                player.currentPvPEnemy.def += 50; // Example increase in DEF for the enemy
+                                                updateOutput("Your enemy has transformed into a Dragon! Their ATK and DEF have significantly increased.");
+                                            }
+                                        }
+
+                                        updateOutput(`You used your skill: ${skillName}!`);
+                                        setTimeout(startHuntCombat, 2000); // Return to combat
+                                    }
+
+
+                                    function checkHuntCombatEnd() {
+                                    if (currentEnemy.hp <= 0) {
+                                    player.gold += currentEnemy.goldReward;
+                                    updateOutput(`You defeated the ${currentEnemy.name}!\nGold earned: ${currentEnemy.goldReward}\nReturning to the main menu...`);
+                                    setTimeout(showUpgradeOptions, 2000);
+                                    } else if (player.hp <= 0) {
+                                    let lostGold = Math.floor(player.gold / 2);
+                                    player.gold = Math.max(0, player.gold - lostGold);
+                                    updateOutput(`You were defeated...\nGold lost: ${lostGold}\nReturning to the lobby.`);
+                                    player.hp = player.maxHp; // Reset player HP after defeat
+                                    setTimeout(showMainMenu, 2000);
+                                    } else {
+                                    setTimeout(startHuntCombat, 2000); // Return to combat after a short delay
+                                    }
+                                    }
+
+                                    function encounterPvP() {
+                                    let botLevel = Math.max(1, player.level + Math.floor(Math.random() * 3) - 1);
+                                    let botPlayer = {
+                                    name: "Bot Player",
+                                    race: ["Human", "Draco"][Math.floor(Math.random() * 2)],
+                                    class: ["Warrior", "Ranger", "Defender", "Wizard"][Math.floor(Math.random() * 4)],
+                                    hp: botLevel * 100,
+                                    atk: botLevel * 10,
+                                    def: botLevel * 5
+                                    };
+                                    player.currentPvPEnemy = botPlayer;
+                                    updateOutput(`PvP Encounter!\nOpponent: ${botPlayer.name}\nRace: ${botPlayer.race}\nClass: ${botPlayer.class}\nHP: ${botPlayer.hp}\nATK: ${botPlayer.atk}\nDEF: ${botPlayer.def}\n\n(1) Battle\n(2) Abandon\n(3) Bid`);
+                                    currentStep = 20; // Set for PvP selection
+                                    }
+
+                                    function handlePvPSelection(event) {
+                                    if (event.key === "1") {
+                                    startCombatPvP();
+                                    } else if (event.key === "2") {
+                                    updateOutput("You abandoned the PvP battle and returned to the main menu.");
+                                    setTimeout(showMainMenu, 2000);
+                                    } else if (event.key === "3") {
+                                    updateOutput(`Enter your bid amount: (Max: ${player.gold})`);
+                                    currentStep = 21;
+                                    }
+                                    }
+
+                                    function handleBidSelection(event) {
+                                    if (!isNaN(event.key) && parseInt(event.key) > 0 && parseInt(event.key) <= player.gold) {
+                                    bidAmount = parseInt(event.key);
+                                    player.gold -= bidAmount;
+                                    updateOutput(`You bid ${bidAmount} gold! Let's battle!`);
+                                    setTimeout(startCombatPvP, 2000);
+                                    } else {
+                                    updateOutput(`Invalid bid amount! Enter a number between 1 and ${player.gold}`);
+                                    }
+                                    }
+
+                                    function startCombatPvP() {
+                                    let combatText = `PvP Combat Start!\n\nOpponent Stats:\nClass: ${player.currentPvPEnemy.class}\nHP: ${player.currentPvPEnemy.hp}\nATK: ${player.currentPvPEnemy.atk}\nDEF: ${player.currentPvPEnemy.def}\n\nYour Stats:\nHP: ${player.hp}\nATK: ${player.atk}\nDEF: ${player.def}\n\n(1) ✊ Rock\n(2) ✋ Paper\n(3) ✌️ Scissors\n(4) Potion\n(5) Use Skill`;
+                                    if (player.race === "Human" && player.battleGears.length > 0) {
+                                    combatText += `\n(6) Use BattleGear`;
+                                    }
+                                    if (player.canTransform && !player.isTransformed) {
+                                    combatText += `\n(7) Transform`;
+                                    }
+                                    updateOutput(combatText);
+                                    currentStep = 29; // Set specifically for PvP combat
+                                    }
+
+                                    function handlePvPCombatChoice(event) {
+                                    if (currentStep === 29) {
+                                    let playerChoice, enemyChoice;
+                                    let choices = ["Rock", "Paper", "Scissors"];
+                                    let emoticonMap = {
+                                    "Rock": "✊",
+                                    "Paper": "✋",
+                                    "Scissors": "✌️"
+                                    };
+
+                                    if (event.key >= "1" && event.key <= "3") {
+                                    playerChoice = choices[parseInt(event.key) - 1];
+                                    enemyChoice = choices[Math.floor(Math.random() * 3)];
+                                    let playerEmoticon = emoticonMap[playerChoice];
+                                    let enemyEmoticon = emoticonMap[enemyChoice];
+
+                                    updateOutput(`Enemy ${enemyEmoticon} vs You ${playerEmoticon}`);
+
+                                    setTimeout(() => {
+                                    determinePvPCombatResult(playerChoice, enemyChoice);
+                                    }, 2000);
+                                    } else if (event.key === "4") {
+                                    usePotion();
+                                    } else if (event.key === "5") {
+                                    useSkill();
+                                    } else if (event.key === "6" && player.race === "Human") {
+                                    useBattleGear();
+                                    } else if (event.key === "7" && player.canTransform && !player.isTransformed) {
+                                    transformToDragon();
+                                    }
+                                    }
+                                    }
+
+                                    function determinePvPCombatResult(playerChoice, enemyChoice) {
+                                    let result;
+
+                                    if (playerChoice === enemyChoice) {
+                                    result = "tie";
+                                    } else if (
+                                    (playerChoice === "Rock" && enemyChoice === "Scissors") ||
+                                    (playerChoice === "Paper" && enemyChoice === "Rock") ||
+                                    (playerChoice === "Scissors" && enemyChoice === "Paper")
+                                    ) {
+                                    result = "win";
+                                    } else {
+                                    result = "lose";
+                                    }
+
+                                    if (result === "win") {
+                                    let damage = Math.max(0, player.atk - player.currentPvPEnemy.def);
+                                    if (player.skillUsed) {
+                                    if (player.class === "Warrior") damage += player.atk; // Slash
+                                    else if (player.class === "Ranger") damage *= 2; // Double Attack
+                                    else if (player.class === "Defender") damage += player.def; // Magnum Breaker
+                                    else if (player.class === "Wizard") player.currentPvPEnemy.def = 0; // Dark Spell
+                                    player.skillUsed = false;
+                                    }
+                                    player.currentPvPEnemy.hp -= damage;
+                                    updateOutput(`You hit for ${damage} damage! Enemy HP: ${player.currentPvPEnemy.hp}`);
+                                    } else if (result === "lose") {
+                                    let damage = Math.max(0, player.currentPvPEnemy.atk - player.def);
+                                    player.hp -= damage;
+                                    updateOutput(`Enemy hits for ${damage} damage! Your HP: ${player.hp}`);
+                                    } else {
+                                    updateOutput("It's a tie! Try again.");
+                                    setTimeout(startCombatPvP, 2000);
+                                    }
+
+                                    checkPvPCombatEnd();
+                                    }
+                                    function useSkill() {
+                                        player.skillUsed = true; // Set skill usage flag
+                                        let skillName = "";
+                                        switch (player.class) {
+                                            case "Warrior":
+                                                skillName = "Slash";
+                                                break;
+                                            case "Ranger":
+                                                skillName = "Double Attack";
+                                                break;
+                                            case "Defender":
+                                                skillName = "Magnum Breaker";
+                                                break;
+                                            case "Wizard":
+                                                skillName = "Dark Spell";
+                                                break;
+                                        }
+                                        function usePotionPvP() {
+                                            let potionIndex = player.inventory.findIndex(item => item.includes("Potion"));
+                                            if (potionIndex > -1) {
+                                                const potion = player.inventory[potionIndex];
+                                                let recoveryAmount = 0;
+
+                                                if (potion.includes("S")) recoveryAmount = 30;
+                                                if (potion.includes("M")) recoveryAmount = 50;
+                                                if (potion.includes("L")) recoveryAmount = 100;
+                                                if (potion.includes("XL")) recoveryAmount = 200;
+                                                if (potion.includes("XXL")) recoveryAmount = 300;
+
+                                                player.hp = Math.min(player.hp + recoveryAmount, player.maxHp);
+                                                updateOutput(`You used a ${potion}. HP: ${player.hp}/${player.maxHp}`);
+                                                player.inventory.splice(potionIndex, 1);
+                                            } else {
+                                                updateOutput("You have no potions left!");
+                                            }
+                                            setTimeout(startCombatPvP, 2000);
+                                        }
+
+                                        function useBattleGearPvP() {
+                                            if (player.battleGears.length > 0) {
+                                                const gear = player.battleGears.pop(); // Use the last BattleGear
+                                                gear.effect();
+                                                updateOutput(`You used ${gear.name}!`);
+                                            } else {
+                                                updateOutput("No BattleGear available!");
+                                            }
+                                            setTimeout(startCombatPvP, 2000);
+                                        }
+                                        function transformToDragonPvP() {
+                                            if (player.race === "Draco" && !player.isTransformed) {
+                                                player.isTransformed = true;
+                                                player.atk += 500; // Example increase in ATK
+                                                player.def += 500; // Example increase in DEF
+                                                updateOutput("You have transformed into a Dragon! Your ATK and DEF have significantly increased.");
+                                            } else {
+                                                updateOutput("You cannot transform into a Dragon.");
+                                            }
+                                            setTimeout(startCombatPvP, 2000);
+                                        }
+
+
+                                        updateOutput(`You used your skill: ${skillName}!`);
+                                        setTimeout(startHuntCombat, 2000); // Return to combat
+                                    }
+                                    
+
+                                    function checkPvPCombatEnd() {
+                                    if (player.currentPvPEnemy.hp <= 0) {
+                                    if (bidAmount > 0) {
+                                    let winnings = bidAmount * (Math.floor(Math.random() * 4) + 2); // Random multiplier between 2 and 5
+                                        player.gold += winnings;
+                                        updateOutput(`You won the PvP battle!\nGold won: ${winnings}\nReturning to the main menu...`);
+                                        } else {
+                                        updateOutput(`You won the PvP battle!\nReturning to the main menu...`);
+                                        }
+                                        setTimeout(showMainMenu, 2000);
+                                        } else if (player.hp <= 0) {
+                                        updateOutput("You were defeated in the PvP battle... Returning to the main menu.");
+                                        player.hp = player.maxHp; // Reset player HP after defeat
+                                        setTimeout(showMainMenu, 2000);
+                                        } else {
+                                        setTimeout(startCombatPvP, 2000); // Return to combat after a short delay
+                                        }
+                                        }
+
+                                        function handleLobbyReturn(event) {
+                                        if (event.key === "0") {
+                                        showMainMenu();
+                                        }
+                                        }
+
+document.addEventListener("keydown", handleInput);
+
+    updateOutput("Welcome to Retro RPG!\nPress Enter to start.");
+</script>
+
+</body>
+</html>
+
+
